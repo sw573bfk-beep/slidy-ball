@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Slope 2D 🟢</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --surface2: #1e1e1e;
+    --border: #2a2a2a;
+    --green: #00ff88;
+    --green-dim: #00cc6a;
+    --red: #ff3355;
+    --gold: #ffd700;
+    --purple: #b388ff;
+    --pink: #ff80ab;
+    --rainbow: #fff;
+    --text: #f0f0f0;
+    --muted: #888;
+    --font-display: 'Space Mono', monospace;
+    --font-body: 'Space Grotesk', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 16px;
+    gap: 16px;
+  }
+
+  /* MAIN LAYOUT GRID */
+  #layout {
+    display: grid;
+    grid-template-columns: 280px 320px 280px;
+    gap: 16px;
+    align-items: start;
+    width: 100%;
+    max-width: 920px;
+  }
+  #layoutLeft { grid-column: 1; }
+  #layoutCenter { grid-column: 2; display: flex; flex-direction: column; align-items: center; }
+  #layoutRight { grid-column: 3; display: flex; flex-direction: column; gap: 16px; }
+  @media (max-width: 800px) {
+    #layout { grid-template-columns: 1fr; }
+    #layoutLeft, #layoutCenter, #layoutRight { grid-column: 1; }
+    #layoutLeft  { order: 3; }
+    #layoutCenter { order: 1; }
+    #layoutRight { order: 2; }
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(1.2rem, 4vw, 1.6rem);
+    color: var(--green);
+    letter-spacing: 0.05em;
+    text-align: center;
+  }
+
+  /* ── GAME WRAPPER ── */
+  #gameWrap {
+    position: relative;
+    width: 320px;
+    height: 450px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  #gameCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ── OVERLAYS ── */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 28px 24px;
+    background: rgba(0,0,0,0.88);
+    backdrop-filter: blur(4px);
+  }
+  .overlay.hidden { display: none; }
+
+  .overlay h2 {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    color: var(--green);
+    letter-spacing: 0.08em;
+    text-align: center;
+  }
+  .overlay p {
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* Buttons */
+  .btn {
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    padding: 8px 20px;
+    border-radius: 3px;
+    border: 1px solid var(--green);
+    background: transparent;
+    color: var(--green);
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    transition: background 0.15s, color 0.15s;
+    width: 100%;
+    max-width: 220px;
+    text-align: center;
+  }
+  .btn:hover { background: var(--green); color: #000; }
+  .btn.secondary { border-color: var(--muted); color: var(--muted); }
+  .btn.secondary:hover { background: var(--muted); color: #000; }
+  .btn.danger { border-color: var(--red); color: var(--red); }
+  .btn.danger:hover { background: var(--red); color: #fff; }
+
+  /* Settings rows */
+  .setting-row {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+    max-width: 260px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .setting-row label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    width: 100%;
+    text-align: center;
+    margin-bottom: 2px;
+  }
+  .chip {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--muted);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .chip:hover, .chip.active { border-color: var(--green); color: var(--green); }
+
+  .swatch { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: border 0.12s; }
+  .swatch:hover, .swatch.active { border-color: var(--green); }
+
+  /* HUD */
+  #hud {
+    position: absolute;
+    top: 8px; left: 10px; right: 10px;
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.7);
+    pointer-events: none;
+  }
+
+  /* Game Over score */
+  #goScore {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    color: var(--red);
+    line-height: 1;
+  }
+  #goWave {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: -6px;
+  }
+
+  /* ── LEADERBOARD PANEL ── */
+  #lbPanel {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+  }
+
+  #lbPanel h3 {
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    color: var(--green);
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #lbPanel h3 span.dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 1.4s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  #lbList {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 40px;
+  }
+
+  #lbList li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: var(--surface2);
+    border-radius: 3px;
+    font-size: 0.75rem;
+  }
+  #lbList li .rank {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    color: var(--muted);
+    width: 18px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  #lbList li.top1 .rank { color: var(--gold); }
+  #lbList li.top2 .rank { color: #c0c0c0; }
+  #lbList li.top3 .rank { color: #cd7f32; }
+  #lbList li .lbName { flex: 1; color: var(--text); }
+  #lbList li .lbScore {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    color: var(--green);
+  }
+
+  /* Name entry */
+  #nameEntry {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  #nameInput {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    padding: 6px 10px;
+    outline: none;
+    transition: border 0.15s;
+  }
+  #nameInput:focus { border-color: var(--green); }
+  #nameInput::placeholder { color: var(--muted); }
+
+  #submitBtn {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    padding: 6px 12px;
+    border: 1px solid var(--green);
+    background: transparent;
+    color: var(--green);
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    transition: all 0.12s;
+  }
+  #submitBtn:hover { background: var(--green); color: #000; }
+  #submitBtn:disabled { opacity: 0.4; cursor: default; }
+
+  #lbStatus {
+    font-size: 0.68rem;
+    color: var(--muted);
+    margin-top: 5px;
+    min-height: 16px;
+  }
+  #lbStatus.err { color: var(--red); }
+  #lbStatus.ok  { color: var(--green); }
+
+  /* Orb legend */
+  #orbLegend {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 16px;
+  }
+  #orbLegend h4 {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+    letter-spacing: 0.06em;
+  }
+  .orb-items {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .orb-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+  .orb-pip {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Keys hint */
+  #keysHint {
+    font-size: 0.65rem;
+    color: var(--muted);
+    text-align: center;
+    padding-bottom: 12px;
+  }
+  #keysHint kbd {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 1px 5px;
+    font-family: var(--font-display);
+    font-size: 0.6rem;
+  }
+</style>
+</head>
+<body>
+
+<h1>SLOPE 2D 🟢</h1>
+
+<div id="layout">
+
+  <!-- LEFT: LEADERBOARD -->
+  <div id="layoutLeft">
+    <div id="lbPanel">
+      <h3><span class="dot"></span> GLOBAL LEADERBOARD</h3>
+      <div id="lbNav" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <button class="btn secondary" id="lbPrev" style="width:auto;padding:4px 10px;font-size:.6rem">◀</button>
+        <span id="lbPageLabel" style="font-family:var(--font-display);font-size:.62rem;color:var(--muted)">1–20</span>
+        <button class="btn secondary" id="lbNext" style="width:auto;padding:4px 10px;font-size:.6rem">▶</button>
+      </div>
+      <ul id="lbList"><li style="color:var(--muted);font-size:.72rem;padding:6px 8px">Loading...</li></ul>
+      <div id="lbYourRank" style="display:none;margin-top:6px;padding:6px 8px;background:var(--surface2);border-radius:3px;border:1px solid var(--border);font-family:var(--font-display);font-size:.65rem;color:var(--muted)"></div>
+      <div id="nameEntry">
+        <input id="nameInput" maxlength="20" placeholder="Your name" autocomplete="off" spellcheck="false"/>
+        <button id="submitBtn" disabled>Save Score</button>
+      </div>
+      <div id="lbStatus"></div>
+    </div>
+  </div>
+
+  <!-- CENTER: GAME -->
+  <div id="layoutCenter">
+    <div id="gameWrap">
+      <canvas id="gameCanvas" width="320" height="450"></canvas>
+
+      <!-- HUD (shown during play) -->
+      <div id="hud" style="display:none">
+        <span id="hudScore">Score: 0</span>
+        <span id="hudWave">Wave 1</span>
+        <span id="hudBest">Best: 0</span>
+      </div>
+
+      <!-- MENU -->
+      <div class="overlay" id="menuOverlay">
+        <h2>SLOPE 2D 🟢</h2>
+        <p>Dodge the reds.<br>Grab the orbs.<br>Survive.</p>
+        <button class="btn" id="btnPlay">▶ Play</button>
+        <button class="btn secondary" id="btnSettings">⚙ Settings</button>
+      </div>
+
+      <!-- SETTINGS -->
+      <div class="overlay hidden" id="settingsOverlay">
+        <h2>SETTINGS</h2>
+        <div class="setting-row">
+          <label>Game Speed</label>
+          <button class="chip active" data-fps="120">120 FPS</button>
+          <button class="chip" data-fps="60">60 FPS</button>
+          <button class="chip" data-fps="45">45 FPS</button>
+          <button class="chip" data-fps="30">30 FPS</button>
+        </div>
+        <div class="setting-row" style="margin-top:6px">
+          <label>Background</label>
+          <div class="swatch active" data-color="#0d0d0d" style="background:#0d0d0d"></div>
+          <div class="swatch" data-color="#0a1628" style="background:#0a1628"></div>
+          <div class="swatch" data-color="#160a28" style="background:#160a28"></div>
+          <div class="swatch" data-color="#0a2814" style="background:#0a2814"></div>
+          <div class="swatch" data-color="#281a0a" style="background:#281a0a"></div>
+        </div>
+        <button class="btn secondary" id="btnBackMenu" style="margin-top:10px">⬅ Back  <span style="font-size:.6rem;opacity:.6">SHIFT</span></button>
+      </div>
+
+      <!-- GAME OVER -->
+      <div class="overlay hidden" id="gameoverOverlay">
+        <h2 style="color:var(--red)">GAME OVER 💥</h2>
+        <div id="goScore">0</div>
+        <div id="goWave">Wave 1</div>
+        <button class="btn" id="btnReplay">▶ Play Again  <span style="font-size:.6rem;opacity:.6">ENTER</span></button>
+        <button class="btn secondary" id="btnGoMenu">⬅ Main Menu  <span style="font-size:.6rem;opacity:.6">SHIFT</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: ORB LEGEND + KEYS -->
+  <div id="layoutRight">
+    <div id="orbLegend">
+      <h4>COLLECTIBLE ORBS</h4>
+      <div class="orb-items">
+        <div class="orb-item"><div class="orb-pip" style="background:radial-gradient(circle at 35% 35%,#fff9a0,#ffd700,#b8860b)"></div> Gold +5</div>
+        <div class="orb-item"><div class="orb-pip" style="background:radial-gradient(circle at 35% 35%,#e8c8ff,#b388ff,#7c4dff)"></div> Purple +10</div>
+        <div class="orb-item"><div class="orb-pip" style="background:radial-gradient(circle at 35% 35%,#ffd6e7,#ff80ab,#f50057)"></div> Pink +20</div>
+        <div class="orb-item"><div class="orb-pip" style="background:conic-gradient(red,orange,yellow,green,blue,violet,red)"></div> Rainbow +100</div>
+        <div class="orb-item"><div class="orb-pip" style="background:radial-gradient(circle at 35% 35%,#ffe0b2,#ff6600,#b34700)"></div> 🔥 Chaos — extra balls, 2× pts, 5s</div>
+        <div class="orb-item"><div class="orb-pip" style="background:radial-gradient(circle at 35% 35%,#e0f7fa,#00bcd4,#006978)"></div> ✨ Lucky — no balls, 2× pts, 5s</div>
+      </div>
+    </div>
+    <p id="keysHint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move &nbsp;·&nbsp; <kbd>Shift</kbd> menu &nbsp;·&nbsp; <kbd>Enter</kbd> start / restart</p>
+  </div>
+
+</div><!-- end #layout -->
+
+<script>
+// ─────────────────────────────────────────
+// CANVAS SETUP
+// ─────────────────────────────────────────
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const W = 320, H = 450;
+
+// ─────────────────────────────────────────
+// GAME STATE
+// ─────────────────────────────────────────
+let gameState = 'menu'; // menu | settings | playing | gameover
+let gameActive = false;
+let score = 0;
+let highScore = 0;
+let currentWave = 1;
+let gameFPS = 120;
+let bgColor = '#0d0d0d';
+
+let playerX = 140, playerY = 380;
+const playerSpeed = 7;
+const playerR = 14;
+
+let ball1X, ball1Y, ball1Speed = 7;
+let ball2X, ball2Y, ball2Speed = 7, isBall2Active = false;
+let ball3X, ball3Y, ball3Speed = 7, isBall3Active = false;
+const ballR = 22;
+
+// Chaos/Lucky orb state
+let specialEffect = null; // 'chaos' | 'lucky' | null
+let specialTimer = 0;     // ticks remaining
+const SPECIAL_DURATION_TICKS = 300; // 5s at 60fps
+let chaosBalls = [];      // extra balls during chaos
+let scoreMultiplier = 1;  // 1 or 2
+let ballsDodged = 0;      // tracks wave progression
+
+let orbX, orbY, orbType, orbPoints;
+let orbPulse = 0; // animation tick
+let orbHue = 0;   // rainbow rotation
+
+let isHoldingW=false, isHoldingA=false, isHoldingS=false, isHoldingD=false;
+
+let engineTimer = null;
+let lastSubmittedScore = null; // score we're about to submit
+
+function rnd(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+
+// ─────────────────────────────────────────
+// ORB SPAWNER
+// ─────────────────────────────────────────
+function respawnOrb() {
+  const roll = rnd(1,100);
+  if (roll === 1) {
+    orbType = 'rainbow'; orbPoints = 100;
+    orbX = rnd(20,280); orbY = rnd(60,140);
+  } else if (roll <= 5) {
+    orbType = 'chaos'; orbPoints = 0;
+    orbX = rnd(20,280); orbY = rnd(80,200);
+  } else if (roll <= 10) {
+    orbType = 'lucky'; orbPoints = 0;
+    orbX = rnd(20,280); orbY = rnd(80,200);
+  } else if (roll <= 18) {
+    orbType = 'pink'; orbPoints = 20;
+    orbX = rnd(20,280); orbY = rnd(60,160);
+  } else if (roll <= 35) {
+    orbType = 'purple'; orbPoints = 10;
+    orbX = rnd(20,280); orbY = rnd(140,230);
+  } else {
+    orbType = 'gold'; orbPoints = 5;
+    orbX = rnd(20,280); orbY = rnd(240,360);
+  }
+}
+
+// ─────────────────────────────────────────
+// DRAWING
+// ─────────────────────────────────────────
+function drawBg() {
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0,0,W,H);
+  // subtle grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 1;
+  for (let x=0;x<W;x+=32){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for (let y=0;y<H;y+=32){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+}
+
+function drawPlayer(x,y) {
+  const cx=x+playerR, cy=y+playerR;
+  // glow
+  const g = ctx.createRadialGradient(cx,cy,2,cx,cy,playerR+8);
+  g.addColorStop(0,'rgba(0,255,136,0.35)');
+  g.addColorStop(1,'rgba(0,255,136,0)');
+  ctx.beginPath(); ctx.arc(cx,cy,playerR+8,0,Math.PI*2);
+  ctx.fillStyle=g; ctx.fill();
+  // body
+  const bg = ctx.createRadialGradient(cx-4,cy-4,1,cx,cy,playerR);
+  bg.addColorStop(0,'#a0ffdb');
+  bg.addColorStop(0.5,'#00ff88');
+  bg.addColorStop(1,'#00994d');
+  ctx.beginPath(); ctx.arc(cx,cy,playerR,0,Math.PI*2);
+  ctx.fillStyle=bg; ctx.fill();
+  // shine
+  ctx.beginPath(); ctx.arc(cx-4,cy-4,5,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,255,0.45)'; ctx.fill();
+}
+
+function drawObstacle(x,y) {
+  const cx=x+ballR, cy=y+ballR;
+  const g = ctx.createRadialGradient(cx,cy,2,cx,cy,ballR+6);
+  g.addColorStop(0,'rgba(255,51,85,0.3)');
+  g.addColorStop(1,'rgba(255,51,85,0)');
+  ctx.beginPath(); ctx.arc(cx,cy,ballR+6,0,Math.PI*2);
+  ctx.fillStyle=g; ctx.fill();
+  const bg = ctx.createRadialGradient(cx-5,cy-5,1,cx,cy,ballR);
+  bg.addColorStop(0,'#ff99aa');
+  bg.addColorStop(0.5,'#ff3355');
+  bg.addColorStop(1,'#8b0000');
+  ctx.beginPath(); ctx.arc(cx,cy,ballR,0,Math.PI*2);
+  ctx.fillStyle=bg; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx-5,cy-5,6,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.fill();
+}
+
+function drawOrb(x,y) {
+  const pulse = 1 + 0.12*Math.sin(orbPulse*0.12);
+  const r = 11 * pulse;
+  const cx=x+r*1.2, cy=y+r*1.2;
+
+  let inner, outer, shine;
+  if (orbType==='gold') {
+    inner='#fffde7'; outer='#b8860b'; shine='rgba(255,255,200,0.6)';
+  } else if (orbType==='purple') {
+    inner='#ede7f6'; outer='#7c4dff'; shine='rgba(220,200,255,0.5)';
+  } else if (orbType==='pink') {
+    inner='#fce4ec'; outer='#f50057'; shine='rgba(255,200,220,0.5)';
+  } else if (orbType==='chaos') {
+    inner='#ffe0b2'; outer='#ff6600'; shine='rgba(255,200,100,0.6)';
+  } else if (orbType==='lucky') {
+    inner='#e0f7fa'; outer='#00bcd4'; shine='rgba(180,255,255,0.6)';
+  } else {
+    // rainbow
+    orbHue = (orbHue+3)%360;
+    inner = `hsl(${orbHue},100%,80%)`;
+    outer = `hsl(${(orbHue+120)%360},100%,50%)`;
+    shine = 'rgba(255,255,255,0.7)';
+  }
+
+  // outer glow
+  const glow = ctx.createRadialGradient(cx,cy,r*0.5,cx,cy,r+7);
+  glow.addColorStop(0, outer.replace(')',',0.4)').replace('hsl','hsla').replace('rgb','rgba'));
+  glow.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.beginPath(); ctx.arc(cx,cy,r+7,0,Math.PI*2);
+  ctx.fillStyle=glow; ctx.fill();
+
+  // body gradient
+  const bg = ctx.createRadialGradient(cx-r*0.3,cy-r*0.3,r*0.1,cx,cy,r);
+  bg.addColorStop(0,inner);
+  bg.addColorStop(0.6,orbType==='rainbow'?`hsl(${(orbHue+60)%360},100%,60%)`:outer.replace(')',',0.9)'));
+  bg.addColorStop(1,outer);
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+  ctx.fillStyle=bg; ctx.fill();
+
+  // star rays (for gold/rainbow/chaos)
+  if (orbType==='gold'||orbType==='rainbow'||orbType==='chaos') {
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.rotate(orbPulse*(orbType==='chaos'?0.09:0.04));
+    ctx.strokeStyle = orbType==='rainbow'?`hsl(${(orbHue+180)%360},100%,80%)`:orbType==='chaos'?'rgba(255,180,50,0.8)':'rgba(255,240,100,0.7)';
+    ctx.lineWidth=1.5;
+    const rays = orbType==='chaos'?6:4;
+    for (let i=0;i<rays;i++){
+      ctx.beginPath(); ctx.moveTo(0,-(r+3)); ctx.lineTo(0,-(r+8)); ctx.stroke();
+      ctx.rotate((Math.PI*2)/rays);
+    }
+    ctx.restore();
+  }
+
+  // lucky ripple rings
+  if (orbType==='lucky') {
+    ctx.save();
+    const ripple = (orbPulse%30)/30;
+    ctx.strokeStyle=`rgba(0,188,212,${0.5*(1-ripple)})`;
+    ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(cx,cy,r+7+ripple*12,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // shine dot
+  ctx.beginPath(); ctx.arc(cx-r*0.3,cy-r*0.3,r*0.28,0,Math.PI*2);
+  ctx.fillStyle=shine; ctx.fill();
+
+  // label
+  ctx.font = `bold ${Math.round(6.5*pulse)}px 'Space Mono', monospace`;
+  ctx.fillStyle='rgba(255,255,255,0.95)';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  const label = orbType==='chaos'?'CHAOS':orbType==='lucky'?'LUCKY':'+'+orbPoints;
+  ctx.fillText(label, cx, cy);
+
+  orbPulse++;
+}
+
+function drawSpecialBanner() {
+  if (!specialEffect) return;
+  const secsLeft = Math.ceil(specialTimer / (60/gameFPS * (gameFPS/60)));
+  const pct = specialTimer / SPECIAL_DURATION_TICKS;
+  const isChaos = specialEffect==='chaos';
+
+  // bar bg
+  ctx.fillStyle='rgba(0,0,0,0.55)';
+  ctx.fillRect(0, H-28, W, 28);
+
+  // progress bar
+  ctx.fillStyle = isChaos ? `rgba(255,102,0,${0.7+0.3*Math.sin(orbPulse*0.2)})` : 'rgba(0,188,212,0.8)';
+  ctx.fillRect(0, H-4, W*pct, 4);
+
+  // text
+  ctx.font = "bold 11px 'Space Mono', monospace";
+  ctx.fillStyle = isChaos ? '#ffaa44' : '#44eeff';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  const msg = isChaos ? `🔥 CHAOS — 2× POINTS — ${secsLeft}s` : `✨ LUCKY — NO BALLS — 2× POINTS — ${secsLeft}s`;
+  ctx.fillText(msg, W/2, H-14);
+}
+
+function drawFrame() {
+  drawBg();
+  if (gameState !== 'playing') return;
+  drawPlayer(playerX, playerY);
+  if (specialEffect !== 'lucky') {
+    drawObstacle(ball1X, ball1Y);
+    if (isBall2Active) drawObstacle(ball2X, ball2Y);
+    if (isBall3Active) drawObstacle(ball3X, ball3Y);
+  }
+  if (specialEffect === 'chaos') {
+    chaosBalls.forEach(b => drawObstacle(b.x, b.y));
+  }
+  drawOrb(orbX, orbY);
+  drawSpecialBanner();
+}
+
+// ─────────────────────────────────────────
+// ENGINE
+// ─────────────────────────────────────────
+function startGame() {
+  clearOverlays();
+  document.getElementById('hud').style.display='flex';
+  gameState='playing'; gameActive=true;
+  score=0; currentWave=1; ballsDodged=0;
+  specialEffect=null; specialTimer=0; scoreMultiplier=1; chaosBalls=[];
+  playerX=140; playerY=380;
+  ball1Y=0; ball1X=rnd(20,260);
+  ball2Y=-150; ball2X=rnd(20,260); isBall2Active=false;
+  ball3Y=-300; ball3X=rnd(20,260); isBall3Active=false;
+  respawnOrb();
+  launchLoop();
+}
+
+function launchLoop() {
+  if (engineTimer) clearInterval(engineTimer);
+  const tick = Math.floor(1000/gameFPS);
+  engineTimer = setInterval(gameTick, tick);
+}
+
+function gameTick() {
+  if (gameState!=='playing'||!gameActive) return;
+
+  const spd = (60/gameFPS)*playerSpeed;
+  if (isHoldingW && playerY>40)  playerY-=spd;
+  if (isHoldingS && playerY<400) playerY+=spd;
+  if (isHoldingA && playerX>5)   playerX-=spd;
+  if (isHoldingD && playerX<270) playerX+=spd;
+
+  // Wave based on balls dodged (every 10)
+  const calc = Math.floor(ballsDodged/10)+1;
+  currentWave = Math.min(calc,100);
+
+  const frameScale = (60/gameFPS);
+  const wSpd = (playerSpeed + (currentWave*0.35)) * frameScale;
+  ball1Speed=ball2Speed=ball3Speed=wSpd;
+
+  if (currentWave>=2) isBall2Active=true;
+  if (currentWave>=5) isBall3Active=true;
+
+  // Special effect timer
+  if (specialEffect) {
+    specialTimer -= frameScale;
+    if (specialTimer <= 0) {
+      specialEffect=null; scoreMultiplier=1; chaosBalls=[];
+    }
+  }
+
+  if (score>highScore) highScore=score;
+  const multTxt = scoreMultiplier>1?' ×2':'';
+  document.getElementById('hudScore').textContent='Score: '+score+multTxt;
+  document.getElementById('hudWave').textContent='Wave '+currentWave;
+  document.getElementById('hudBest').textContent='Best: '+highScore;
+
+  // Move regular balls (frozen during lucky)
+  if (specialEffect !== 'lucky') {
+    ball1Y+=ball1Speed;
+    if (ball1Y>H+20){ball1Y=-20;ball1X=rnd(20,260);ballsDodged++;score+=scoreMultiplier;}
+
+    if (isBall2Active){
+      ball2Y+=ball2Speed;
+      if (ball2Y>H+20){ball2Y=-20;ball2X=rnd(20,260);ballsDodged++;score+=scoreMultiplier;}
+    }
+    if (isBall3Active){
+      ball3Y+=ball3Speed;
+      if (ball3Y>H+20){ball3Y=-20;ball3X=rnd(20,260);ballsDodged++;score+=scoreMultiplier;}
+    }
+  }
+
+  // Chaos extra balls
+  if (specialEffect === 'chaos') {
+    // spawn new chaos balls occasionally
+    if (chaosBalls.length < 2 && rnd(1,8)===1) {
+      chaosBalls.push({x:rnd(20,260), y:-20, spd: wSpd*1.3});
+    }
+    const pCX=playerX+playerR, pCY=playerY+playerR;
+    chaosBalls = chaosBalls.filter(b=>{
+      b.y += b.spd;
+      if (b.y>H+20){ballsDodged++;score+=scoreMultiplier;return false;}
+      const d=Math.hypot(pCX-(b.x+ballR),pCY-(b.y+ballR));
+      if (d<(playerR+ballR-6)){triggerGameOver();return false;}
+      return true;
+    });
+  }
+
+  // Orb collision
+  const pCX=playerX+playerR, pCY=playerY+playerR;
+  const oDist=Math.hypot(pCX-(orbX+13),pCY-(orbY+13));
+  if (oDist<28) {
+    if (orbType==='chaos') {
+      specialEffect='chaos';
+      specialTimer=SPECIAL_DURATION_TICKS;
+      scoreMultiplier=2;
+      chaosBalls=[];
+    } else if (orbType==='lucky') {
+      specialEffect='lucky';
+      specialTimer=SPECIAL_DURATION_TICKS;
+      scoreMultiplier=2;
+    } else {
+      score += orbPoints * scoreMultiplier;
+    }
+    respawnOrb();
+  }
+
+  // Obstacle collision (only if not lucky)
+  if (specialEffect !== 'lucky') {
+    const d1=Math.hypot(pCX-(ball1X+ballR),pCY-(ball1Y+ballR));
+    const d2=Math.hypot(pCX-(ball2X+ballR),pCY-(ball2Y+ballR));
+    const d3=Math.hypot(pCX-(ball3X+ballR),pCY-(ball3Y+ballR));
+    if (d1<(playerR+ballR-6)||(isBall2Active&&d2<(playerR+ballR-6))||(isBall3Active&&d3<(playerR+ballR-6))) {
+      triggerGameOver();
+    }
+  }
+
+  drawFrame();
+}
+
+function triggerGameOver() {
+  gameActive=false; gameState='gameover';
+  document.getElementById('hud').style.display='none';
+  document.getElementById('goScore').textContent=score;
+  document.getElementById('goWave').textContent='Wave '+currentWave;
+  document.getElementById('gameoverOverlay').classList.remove('hidden');
+  lastSubmittedScore = score;
+  // enable leaderboard submit
+  document.getElementById('submitBtn').disabled=false;
+  document.getElementById('lbStatus').textContent='';
+  document.getElementById('lbStatus').className='';
+  drawFrame(); // one last frame
+}
+
+function clearOverlays() {
+  ['menuOverlay','settingsOverlay','gameoverOverlay'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+}
+function showMenu() {
+  if (engineTimer) clearInterval(engineTimer);
+  gameState='menu';gameActive=false;
+  document.getElementById('hud').style.display='none';
+  clearOverlays();
+  document.getElementById('menuOverlay').classList.remove('hidden');
+  drawBg();
+}
+
+// ─────────────────────────────────────────
+// LEADERBOARD  (Supabase backend)
+// ─────────────────────────────────────────
+//
+// ┌─────────────────────────────────────────────────────────────┐
+// │  SETUP (one-time, ~3 minutes)                               │
+// │  1. Go to https://supabase.com and create a free project    │
+// │  2. In the SQL Editor run:                                  │
+// │                                                             │
+// │  create table leaderboard (                                 │
+// │    id bigint generated always as identity primary key,      │
+// │    name text not null,                                      │
+// │    score int not null,                                      │
+// │    created_at timestamptz default now()                     │
+// │  );                                                         │
+// │  alter table leaderboard enable row level security;         │
+// │  create policy "public read"  on leaderboard               │
+// │    for select using (true);                                 │
+// │  create policy "public insert" on leaderboard              │
+// │    for insert with check (true);                            │
+// │                                                             │
+// │  3. Replace the two placeholders below with your            │
+// │     Project URL and anon/public API key (both in            │
+// │     Project Settings → API).                                │
+// └─────────────────────────────────────────────────────────────┘
+
+const SUPABASE_URL = 'https://yysweljsobhbqfpnpkdu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5c3dlbGpzb2JoYnFmcG5wa2R1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwNzQwMzYsImV4cCI6MjA5NjY1MDAzNn0.F4JCgDu-ENGE1dYjGG0lnZlXHAvnHTRhGxbiYfi7Gg4';
+
+const PAGE_SIZE = 20; // entries per page
+let lbPage = 0;       // current page index (0-based)
+let lbAllEntries = []; // cached full top-100 list
+
+function escHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Fetch top 100 best scores (one per name) from Supabase
+async function fetchLeaderboard() {
+  // Fetch top 200 rows ordered by score desc, then deduplicate by name client-side
+  const url = `${SUPABASE_URL}/rest/v1/leaderboard?select=name,score&order=score.desc&limit=200`;
+  const res = await fetch(url, {
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+    }
+  });
+  if (!res.ok) throw new Error('Fetch failed: ' + res.status);
+  const rows = await res.json();
+  // Deduplicate: keep best score per name
+  const seen = new Map();
+  for (const r of rows) {
+    const key = r.name.toLowerCase();
+    if (!seen.has(key) || r.score > seen.get(key).score) seen.set(key, r);
+  }
+  return [...seen.values()].sort((a,b)=>b.score-a.score).slice(0,100);
+}
+
+async function renderLeaderboard(scrollToSubmitted) {
+  const list = document.getElementById('lbList');
+  const yourRank = document.getElementById('lbYourRank');
+  list.innerHTML='<li style="color:var(--muted);font-size:.72rem;padding:6px 8px">Loading…</li>';
+  yourRank.style.display='none';
+
+  try {
+    lbAllEntries = await fetchLeaderboard();
+  } catch(e) {
+    list.innerHTML='<li style="color:var(--red);font-size:.72rem;padding:6px 8px">Could not load — check Supabase config.</li>';
+    return;
+  }
+
+  if (!lbAllEntries.length) {
+    list.innerHTML='<li style="color:var(--muted);font-size:.72rem;padding:6px 8px">No scores yet — be the first!</li>';
+    updateNavButtons();
+    return;
+  }
+
+  // If we just submitted, jump to the page that contains the submitted name
+  if (scrollToSubmitted && lastSubmittedName) {
+    const idx = lbAllEntries.findIndex(e=>e.name.toLowerCase()===lastSubmittedName.toLowerCase());
+    if (idx >= 0) lbPage = Math.floor(idx / PAGE_SIZE);
+  }
+
+  renderPage();
+}
+
+function renderPage() {
+  const list = document.getElementById('lbList');
+  const yourRank = document.getElementById('lbYourRank');
+  const start = lbPage * PAGE_SIZE;
+  const slice = lbAllEntries.slice(start, start + PAGE_SIZE);
+
+  list.innerHTML = slice.map((e, i) => {
+    const rank = start + i + 1;
+    const cls = rank===1?'top1':rank===2?'top2':rank===3?'top3':'';
+    const medal = rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':`#${rank}`;
+    const isYou = lastSubmittedName && e.name.toLowerCase()===lastSubmittedName.toLowerCase();
+    const rowStyle = isYou ? 'background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.2);' : '';
+    return `<li class="${cls}" style="${rowStyle}"><span class="rank">${medal}</span><span class="lbName">${escHtml(e.name)}${isYou?' <span style="color:var(--green);font-size:.55rem">YOU</span>':''}</span><span class="lbScore">${e.score}</span></li>`;
+  }).join('');
+
+  // Show "your rank" banner if player's name is known but off this page
+  if (lastSubmittedName) {
+    const idx = lbAllEntries.findIndex(e=>e.name.toLowerCase()===lastSubmittedName.toLowerCase());
+    if (idx >= 0) {
+      const rank = idx + 1;
+      const onThisPage = rank > start && rank <= start + PAGE_SIZE;
+      if (!onThisPage) {
+        yourRank.textContent = `Your rank: #${rank} — ${escHtml(lbAllEntries[idx].name)} · ${lbAllEntries[idx].score} pts`;
+        yourRank.style.display='block';
+      } else {
+        yourRank.style.display='none';
+      }
+    } else {
+      // Outside top 100
+      yourRank.textContent = `You are outside the top 100.`;
+      yourRank.style.display='block';
+    }
+  }
+
+  updateNavButtons();
+}
+
+function updateNavButtons() {
+  const totalPages = Math.max(1, Math.ceil(lbAllEntries.length / PAGE_SIZE));
+  const start = lbPage * PAGE_SIZE + 1;
+  const end = Math.min((lbPage + 1) * PAGE_SIZE, lbAllEntries.length);
+  document.getElementById('lbPageLabel').textContent = lbAllEntries.length ? `${start}–${end} of ${lbAllEntries.length}` : '—';
+  document.getElementById('lbPrev').disabled = lbPage === 0;
+  document.getElementById('lbNext').disabled = lbPage >= totalPages - 1;
+}
+
+document.getElementById('lbPrev').addEventListener('click', ()=>{ if(lbPage>0){lbPage--;renderPage();} });
+document.getElementById('lbNext').addEventListener('click', ()=>{ const tp=Math.ceil(lbAllEntries.length/PAGE_SIZE); if(lbPage<tp-1){lbPage++;renderPage();} });
+
+// Insert a new score row into Supabase
+async function insertScore(name, scoreVal) {
+  const existing = lbAllEntries.find(e => e.name.toLowerCase() === name.toLowerCase());
+  if (existing && existing.score >= scoreVal) return;
+
+  const url = `${SUPABASE_URL}/rest/v1/leaderboard`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify({ name, score: scoreVal })
+  });
+  if (!res.ok) throw new Error('Insert failed: ' + res.status);
+}
+
+// Name moderation via Claude API
+
+async function isNameAppropriate(name) {
+  const banned = ["fuck","fucking","shit","bitch","asshole","cunt","dick","pussy","nigger","nigga","fag","faggot","slut","whore","porn","sex","rape","cock","penis","vagina","boob","boobs","motherfucker"];
+  const n = name.toLowerCase()
+    .replace(/[@4]/g,"a")
+    .replace(/[3]/g,"e")
+    .replace(/[1!]/g,"i")
+    .replace(/[0]/g,"o")
+    .replace(/[5$]/g,"s")
+    .replace(/[^a-z0-9]/g,"");
+  for (const w of banned) {
+    if (n.includes(w)) return {ok:false, reason:"inappropriate language"};
+  }
+  return {ok:true};
+}
+
+let lastSubmittedName = null;
+
+document.getElementById('submitBtn').addEventListener('click', async ()=>{
+  const input = document.getElementById('nameInput');
+  const status = document.getElementById('lbStatus');
+  const btn = document.getElementById('submitBtn');
+  const name = input.value.trim();
+
+  if (!name) { status.textContent='Please enter a name.'; status.className='err'; return; }
+  if (name.length < 2) { status.textContent='Name too short (min 2 chars).'; status.className='err'; return; }
+
+  btn.disabled=true;
+  status.textContent='Checking name…'; status.className='';
+
+  const check = await isNameAppropriate(name);
+  if (!check.ok) {
+    status.textContent='Name rejected: '+(check.reason||'inappropriate content.');
+    status.className='err';
+    btn.disabled=false;
+    return;
+  }
+
+  status.textContent='Saving score…'; status.className='';
+
+  try {
+    await insertScore(name, lastSubmittedScore ?? score);
+    lastSubmittedName = name;
+    await renderLeaderboard(true);
+    status.textContent='Score saved! 🎉'; status.className='ok';
+    input.value='';
+    // keep btn disabled — one submit per game over
+  } catch(e) {
+    status.textContent='Error saving — check Supabase config.'; status.className='err';
+    btn.disabled=false;
+  }
+});
+
+// ─────────────────────────────────────────
+// UI EVENTS
+// ─────────────────────────────────────────
+document.getElementById('btnPlay').addEventListener('click', startGame);
+document.getElementById('btnSettings').addEventListener('click', ()=>{
+  clearOverlays();
+  document.getElementById('settingsOverlay').classList.remove('hidden');
+  gameState='settings';
+});
+document.getElementById('btnBackMenu').addEventListener('click', showMenu);
+document.getElementById('btnReplay').addEventListener('click', startGame);
+document.getElementById('btnGoMenu').addEventListener('click', showMenu);
+
+// FPS chips
+document.querySelectorAll('.chip[data-fps]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.chip[data-fps]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    gameFPS=parseInt(btn.dataset.fps);
+    if (gameState==='playing') launchLoop();
+  });
+});
+
+// Background swatches
+document.querySelectorAll('.swatch[data-color]').forEach(sw=>{
+  sw.addEventListener('click',()=>{
+    document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+    sw.classList.add('active');
+    bgColor=sw.dataset.color;
+    drawBg();
+  });
+});
+
+// Keyboard
+document.addEventListener('keydown', e=>{
+  const k=e.key.toLowerCase();
+  if (gameState==='playing'&&gameActive) {
+    if(k==='w')isHoldingW=true;
+    if(k==='a')isHoldingA=true;
+    if(k==='s')isHoldingS=true;
+    if(k==='d')isHoldingD=true;
+    if(e.key==='Shift'){gameActive=false;showMenu();}
+  } else if (gameState==='menu') {
+    if(e.key==='Enter')startGame();
+    if(k==='s'){clearOverlays();document.getElementById('settingsOverlay').classList.remove('hidden');gameState='settings';}
+  } else if (gameState==='settings') {
+    if(e.key==='Shift')showMenu();
+  } else if (gameState==='gameover') {
+    if(e.key==='Enter')startGame();
+    if(e.key==='Shift')showMenu();
+  }
+});
+document.addEventListener('keyup', e=>{
+  const k=e.key.toLowerCase();
+  if(k==='w')isHoldingW=false;
+  if(k==='a')isHoldingA=false;
+  if(k==='s')isHoldingS=false;
+  if(k==='d')isHoldingD=false;
+});
+
+// ─────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────
+drawBg();
+renderLeaderboard();
+</script>
+</body>
+</html>
